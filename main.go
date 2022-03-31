@@ -37,10 +37,11 @@ func deleteMovie(w http.ResponseWriter, r *http.Request) {
 	for index, item := range movies {
 		if item.ID == params["id"] {
 			movies = append(movies[:index], movies[index+1:]...)
-			break
+			json.NewEncoder(w).Encode(movies)
+			return
 		}
 	}
-	json.NewEncoder(w).Encode(movies)
+	json.NewEncoder(w).Encode("Não é possivel encontrar o filme indicado")
 }
 
 func getMovie(w http.ResponseWriter, r *http.Request) {
@@ -52,6 +53,7 @@ func getMovie(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	json.NewEncoder(w).Encode("Não é possivel encontrar o filme indicado")
 }
 
 func createMovie(w http.ResponseWriter, r *http.Request) {
@@ -59,6 +61,13 @@ func createMovie(w http.ResponseWriter, r *http.Request) {
 	var movie Movie
 	_ = json.NewDecoder(r.Body).Decode(&movie)
 	movie.ID = strconv.Itoa((rand.Intn(1000000)))
+	for _, item := range movies {
+		if movie.Title == item.Title {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode("Não é possivel cadastrar filme com o mesmo nome")
+			return
+		}
+	}
 	movies = append(movies, movie)
 	json.NewEncoder(w).Encode(movie)
 
@@ -78,6 +87,8 @@ func updateMovie(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+
+	json.NewEncoder(w).Encode("Não é possivel encontrar o filme indicado")
 
 }
 
