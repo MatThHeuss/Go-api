@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"net/http"
 	"strconv"
+	"time"
 
 	"strings"
 
@@ -29,12 +30,14 @@ type Director struct {
 }
 
 type User struct {
-	ID        string `json:"id"`
-	Firstname string `json:"firstname"`
-	Lastname  string `json:"lastname"`
-	Email     string `json:"email"`
-	Password  string `json:"password"`
-	Type      string `json:"type"`
+	ID         string    `json:"id"`
+	Firstname  string    `json:"firstname"`
+	Lastname   string    `json:"lastname"`
+	Email      string    `json:"email"`
+	Password   string    `json:"password"`
+	Type       string    `json:"type"`
+	Created_at time.Time `json:"created_at"`
+	Updated_at time.Time `json:"updated_at"`
 }
 
 func HashPassword(password string) (string, error) {
@@ -133,6 +136,8 @@ func createUser(w http.ResponseWriter, r *http.Request) {
 	user.ID = uuid
 	user.Password, _ = HashPassword(user.Password)
 	users = append(users, user)
+	user.Created_at = time.Now()
+	user.Updated_at = time.Now()
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(user)
 }
