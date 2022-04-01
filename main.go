@@ -8,6 +8,9 @@ import (
 	"net/http"
 	"strconv"
 
+	"strings"
+
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -31,6 +34,18 @@ type User struct {
 	Email     string `json:"email"`
 	Password  string `json:"password"`
 	Type      string `json:"type"`
+}
+
+func HashPassword(password string) (string, error) {
+	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
+	return string(bytes), err
+}
+
+func generateUUID() string {
+	uuidWithHyphen := uuid.New()
+	fmt.Println(uuidWithHyphen)
+	uuid := strings.Replace(uuidWithHyphen.String(), "-", "", -1)
+	return uuid
 }
 
 var movies []Movie
@@ -103,11 +118,6 @@ func updateMovie(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func HashPassword(password string) (string, error) {
-	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
-	return string(bytes), err
-}
-
 func createUser(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	var user User
@@ -119,6 +129,8 @@ func createUser(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	uuid := generateUUID()
+	user.ID = uuid
 	user.Password, _ = HashPassword(user.Password)
 	users = append(users, user)
 	json.NewEncoder(w).Encode(user)
