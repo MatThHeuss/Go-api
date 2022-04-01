@@ -112,9 +112,22 @@ func createUser(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	var user User
 	_ = json.NewDecoder(r.Body).Decode(&user)
+	for _, item := range users {
+		if user.Email == item.Email {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode("Email já cadastrado na nossa base de dados")
+			return
+		}
+	}
 	user.Password, _ = HashPassword(user.Password)
 	users = append(users, user)
 	json.NewEncoder(w).Encode(user)
+}
+
+func getUsers(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(users)
 }
 
 func main() {
@@ -128,7 +141,9 @@ func main() {
 	r.HandleFunc("/movies", createMovie).Methods("POST")
 	r.HandleFunc("/movies/{id}", updateMovie).Methods("PUT")
 	r.HandleFunc("/movies/{id}", deleteMovie).Methods("DELETE")
-	r.HandleFunc("/user", createUser).Methods("POST")
+
+	r.HandleFunc("/users", createUser).Methods("POST")
+	r.HandleFunc("/users", getUsers).Methods("GET")
 
 	fmt.Printf("Starting Server at port 8000")
 	log.Fatal(http.ListenAndServe(":8000", r))
