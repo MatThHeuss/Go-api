@@ -10,6 +10,7 @@ import (
 
 	"strings"
 
+	"example.com/config"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"golang.org/x/crypto/bcrypt"
@@ -43,7 +44,6 @@ func HashPassword(password string) (string, error) {
 
 func generateUUID() string {
 	uuidWithHyphen := uuid.New()
-	fmt.Println(uuidWithHyphen)
 	uuid := strings.Replace(uuidWithHyphen.String(), "-", "", -1)
 	return uuid
 }
@@ -67,7 +67,7 @@ func deleteMovie(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	json.NewEncoder(w).Encode("Não é possivel encontrar o filme indicado")
+	json.NewEncoder(w).Encode(config.ErrorMovieNotFound)
 }
 
 func getMovie(w http.ResponseWriter, r *http.Request) {
@@ -79,7 +79,7 @@ func getMovie(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	json.NewEncoder(w).Encode("Não é possivel encontrar o filme indicado")
+	json.NewEncoder(w).Encode(config.ErrorMovieNotFound)
 }
 
 func createMovie(w http.ResponseWriter, r *http.Request) {
@@ -90,7 +90,7 @@ func createMovie(w http.ResponseWriter, r *http.Request) {
 	for _, item := range movies {
 		if movie.Title == item.Title {
 			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode("Não é possivel cadastrar filme com o mesmo nome")
+			json.NewEncoder(w).Encode(config.ErrorMovieWithSameName)
 			return
 		}
 	}
@@ -113,8 +113,8 @@ func updateMovie(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-
-	json.NewEncoder(w).Encode("Não é possivel encontrar o filme indicado")
+	w.WriteHeader(http.StatusNotFound)
+	json.NewEncoder(w).Encode(config.ErrorMovieNotFound)
 
 }
 
@@ -125,7 +125,7 @@ func createUser(w http.ResponseWriter, r *http.Request) {
 	for _, item := range users {
 		if user.Email == item.Email {
 			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode("Email já cadastrado na nossa base de dados")
+			json.NewEncoder(w).Encode(config.ErrorEmailAlreadyExists)
 			return
 		}
 	}
@@ -133,6 +133,7 @@ func createUser(w http.ResponseWriter, r *http.Request) {
 	user.ID = uuid
 	user.Password, _ = HashPassword(user.Password)
 	users = append(users, user)
+	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(user)
 }
 
@@ -140,6 +141,19 @@ func getUsers(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(users)
+}
+
+func getUser(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	params := mux.Vars(r)
+	for _, item := range users {
+		if item.ID == params["id"] {
+			json.NewEncoder(w).Encode(item)
+			return
+		}
+	}
+	w.WriteHeader(http.StatusNotFound)
+	json.NewEncoder(w).Encode(config.ErrorGetUser)
 }
 
 func main() {
@@ -156,6 +170,7 @@ func main() {
 
 	r.HandleFunc("/users", createUser).Methods("POST")
 	r.HandleFunc("/users", getUsers).Methods("GET")
+	r.HandleFunc("/users/{id}", getUser).Methods("GET")
 
 	fmt.Printf("Starting Server at port 8000")
 	log.Fatal(http.ListenAndServe(":8000", r))
