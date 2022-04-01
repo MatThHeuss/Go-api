@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"github.com/gorilla/mux"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type Movie struct {
@@ -23,7 +24,17 @@ type Director struct {
 	Lastname  string `json:"lastname"`
 }
 
+type User struct {
+	ID        string `json:"id"`
+	Firstname string `json:"firstname"`
+	Lastname  string `json:"lastname"`
+	Email     string `json:"email"`
+	Password  string `json:"password"`
+	Type      string `json:"type"`
+}
+
 var movies []Movie
+var users []User
 
 func getMovies(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
@@ -92,6 +103,20 @@ func updateMovie(w http.ResponseWriter, r *http.Request) {
 
 }
 
+func HashPassword(password string) (string, error) {
+	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
+	return string(bytes), err
+}
+
+func createUser(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	var user User
+	_ = json.NewDecoder(r.Body).Decode(&user)
+	user.Password, _ = HashPassword(user.Password)
+	users = append(users, user)
+	json.NewEncoder(w).Encode(user)
+}
+
 func main() {
 	r := mux.NewRouter()
 
@@ -103,6 +128,7 @@ func main() {
 	r.HandleFunc("/movies", createMovie).Methods("POST")
 	r.HandleFunc("/movies/{id}", updateMovie).Methods("PUT")
 	r.HandleFunc("/movies/{id}", deleteMovie).Methods("DELETE")
+	r.HandleFunc("/user", createUser).Methods("POST")
 
 	fmt.Printf("Starting Server at port 8000")
 	log.Fatal(http.ListenAndServe(":8000", r))
