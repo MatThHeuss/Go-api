@@ -11,6 +11,7 @@ import (
 
 	"strings"
 
+	"example.com/auth"
 	"example.com/config"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
@@ -40,9 +41,23 @@ type User struct {
 	Updated_at time.Time `json:"updated_at"`
 }
 
+type Credentials struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+type JWT struct {
+	Token string `json:"token"`
+}
+
 func HashPassword(password string) (string, error) {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
 	return string(bytes), err
+}
+
+func CheckPasswordHash(password, hash string) bool {
+	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+	return err == nil
 }
 
 func generateUUID() string {
@@ -83,6 +98,7 @@ func getMovie(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	json.NewEncoder(w).Encode(config.ErrorMovieNotFound)
+
 }
 
 func createMovie(w http.ResponseWriter, r *http.Request) {
@@ -132,6 +148,7 @@ func createUser(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+
 	uuid := generateUUID()
 	user.ID = uuid
 	user.Password, _ = HashPassword(user.Password)
@@ -161,6 +178,29 @@ func getUser(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(config.ErrorGetUser)
 }
 
+func login(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	var credentials Credentials
+	_ = json.NewDecoder(r.Body).Decode(&credentials)
+
+	for _, user := range users {
+		if user.Email == credentials.Email && CheckPasswordHash(credentials.Password, user.Password) {
+			token, err := auth.CreateToken(user.ID, user.Type)
+			if err != nil {
+				json.NewEncoder(w).Encode(config.ErrorJWT)
+			}
+			bearer := "Bearer " + token
+			var jwt JWT
+			jwt.Token = bearer
+			json.NewEncoder(w).Encode(jwt)
+			return
+		}
+	}
+
+	w.WriteHeader(http.StatusBadRequest)
+	json.NewEncoder(w).Encode(config.ErrorLogin)
+}
+
 func main() {
 	r := mux.NewRouter()
 
@@ -176,6 +216,8 @@ func main() {
 	r.HandleFunc("/users", createUser).Methods("POST")
 	r.HandleFunc("/users", getUsers).Methods("GET")
 	r.HandleFunc("/users/{id}", getUser).Methods("GET")
+
+	r.HandleFunc("/login", login).Methods("POST")
 
 	fmt.Printf("Starting Server at port 8000")
 	log.Fatal(http.ListenAndServe(":8000", r))
