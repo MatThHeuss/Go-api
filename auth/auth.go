@@ -2,6 +2,8 @@ package auth
 
 import (
 	"fmt"
+	"net/http"
+	"strings"
 	"time"
 
 	jwt "github.com/dgrijalva/jwt-go"
@@ -21,10 +23,34 @@ func CreateToken(user_id string, user_type string) (string, error) {
 	tokenString, err := token.SignedString(mySignInKey)
 
 	if err != nil {
-		fmt.Errorf("Algo deu errado: %s", err.Error())
+		err := fmt.Errorf("algo deu errado: %s", err.Error())
 		return "", err
 	}
 
 	return tokenString, nil
 
+}
+
+func VerifyToken(r *http.Request) (jwt.Claims, error) {
+	bearerToken := r.Header.Get("Authorization")
+	jwtToken := strings.Split(bearerToken, " ")[1]
+
+	token, err := jwt.Parse(jwtToken, func(t *jwt.Token) (interface{}, error) {
+		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("There was an error")
+		}
+		return mySignInKey, nil
+	})
+
+	fmt.Println(token)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+		return claims, nil
+	}
+
+	return nil, nil
 }

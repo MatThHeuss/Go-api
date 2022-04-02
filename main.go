@@ -201,6 +201,20 @@ func login(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(config.ErrorLogin)
 }
 
+func adminRoute(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	claims, err := auth.VerifyToken(r)
+
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(config.ErrorTokenInvalid)
+		return
+	}
+
+	json.NewEncoder(w).Encode(claims)
+
+}
+
 func main() {
 	r := mux.NewRouter()
 
@@ -218,6 +232,8 @@ func main() {
 	r.HandleFunc("/users/{id}", getUser).Methods("GET")
 
 	r.HandleFunc("/login", login).Methods("POST")
+
+	r.HandleFunc("/admin", adminRoute).Methods("GET")
 
 	fmt.Printf("Starting Server at port 8000")
 	log.Fatal(http.ListenAndServe(":8000", r))
