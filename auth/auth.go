@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -35,7 +34,6 @@ func CreateToken(user_id string, user_type string, user_email string) (string, e
 	tokenString, err := token.SignedString(mySignInKey)
 
 	if err != nil {
-		err := fmt.Errorf("algo deu errado: %s", err.Error())
 		return "", err
 	}
 
