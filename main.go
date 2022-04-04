@@ -50,6 +50,13 @@ type JWT struct {
 	Token string `json:"token"`
 }
 
+type token struct {
+	UserId          string `json:"user_id"`
+	UserType        string `json:"user_type"`
+	UserEmail       string `json:"user_email"`
+	TokenExpiration int64  `json:"token_expiration"`
+}
+
 func HashPassword(password string) (string, error) {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
 	return string(bytes), err
@@ -185,7 +192,7 @@ func login(w http.ResponseWriter, r *http.Request) {
 
 	for _, user := range users {
 		if user.Email == credentials.Email && CheckPasswordHash(credentials.Password, user.Password) {
-			token, err := auth.CreateToken(user.ID, user.Type)
+			token, err := auth.CreateToken(user.ID, user.Type, user.Email)
 			if err != nil {
 				json.NewEncoder(w).Encode(config.ErrorJWT)
 			}
@@ -203,7 +210,7 @@ func login(w http.ResponseWriter, r *http.Request) {
 
 func adminRoute(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	claims, err := auth.VerifyToken(r)
+	user_id, user_type, user_email, token_expiration, err := auth.VerifyToken(r)
 
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -211,8 +218,13 @@ func adminRoute(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(claims)
-
+	token := token{
+		UserId:          user_id,
+		UserType:        user_type,
+		UserEmail:       user_email,
+		TokenExpiration: token_expiration,
+	}
+	json.NewEncoder(w).Encode(token)
 }
 
 func main() {
