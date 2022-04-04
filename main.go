@@ -4,15 +4,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"math/rand"
 	"net/http"
-	"strconv"
 	"time"
 
 	"strings"
 
+	"database/sql"
+
 	"example.com/auth"
 	"example.com/config"
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"golang.org/x/crypto/bcrypt"
@@ -41,6 +42,16 @@ type User struct {
 	Updated_at time.Time `json:"updated_at"`
 }
 
+type UserDTO struct {
+	ID         string    `json:"id"`
+	Firstname  string    `json:"firstname"`
+	Lastname   string    `json:"lastname"`
+	Email      string    `json:"email"`
+	Type       string    `json:"type"`
+	Created_at time.Time `json:"created_at"`
+	Updated_at time.Time `json:"updated_at"`
+}
+
 type Credentials struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
@@ -56,6 +67,10 @@ type token struct {
 	UserEmail       string `json:"user_email"`
 	TokenExpiration int64  `json:"token_expiration"`
 }
+
+var (
+	db *sql.DB
+)
 
 func HashPassword(password string) (string, error) {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
@@ -73,116 +88,95 @@ func generateUUID() string {
 	return uuid
 }
 
-var movies []Movie
-var users []User
+func EmailAlreadyExists(email string) bool {
+	query := "SELECT email FROM users WHERE email = ?"
 
-func getMovies(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(movies)
+	rows, _ := db.Query(query, email)
+
+	return rows.Next()
 }
 
-func deleteMovie(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	params := mux.Vars(r)
-	for index, item := range movies {
-		if item.ID == params["id"] {
-			movies = append(movies[:index], movies[index+1:]...)
-			json.NewEncoder(w).Encode(movies)
-			return
-		}
-	}
-	json.NewEncoder(w).Encode(config.ErrorMovieNotFound)
+func UserExists(id string) bool {
+	query := "SELECT id, email, first_name FROM users WHERE id = ?"
+
+	rows, _ := db.Query(query, id)
+	return rows.Next()
 }
 
-func getMovie(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	params := mux.Vars(r)
-	for _, item := range movies {
-		if item.ID == params["id"] {
-			json.NewEncoder(w).Encode(item)
-			return
-		}
-	}
-	json.NewEncoder(w).Encode(config.ErrorMovieNotFound)
+func UserExistsWithEmail(email string) bool {
+	query := "SELECT id, email, first_name, password FROM users WHERE email = ?"
 
-}
-
-func createMovie(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	var movie Movie
-	_ = json.NewDecoder(r.Body).Decode(&movie)
-	movie.ID = strconv.Itoa((rand.Intn(1000000)))
-	for _, item := range movies {
-		if movie.Title == item.Title {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(config.ErrorMovieWithSameName)
-			return
-		}
-	}
-	movies = append(movies, movie)
-	json.NewEncoder(w).Encode(movie)
-
-}
-
-func updateMovie(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	params := mux.Vars(r)
-	for index, item := range movies {
-		if item.ID == params["id"] {
-			movies = append(movies[:index], movies[index+1:]...)
-			var movie Movie
-			_ = json.NewDecoder(r.Body).Decode(&movie)
-			movie.ID = params["id"]
-			movies = append(movies, movie)
-			json.NewEncoder(w).Encode(movies)
-			return
-		}
-	}
-	w.WriteHeader(http.StatusNotFound)
-	json.NewEncoder(w).Encode(config.ErrorMovieNotFound)
-
+	rows, _ := db.Query(query, email)
+	return rows.Next()
 }
 
 func createUser(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	var user User
 	_ = json.NewDecoder(r.Body).Decode(&user)
-	for _, item := range users {
-		if user.Email == item.Email {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(config.ErrorEmailAlreadyExists)
-			return
-		}
+
+	if EmailAlreadyExists(user.Email) {
+		json.NewEncoder(w).Encode(config.ErrorEmailAlreadyExists)
+		return
 	}
 
 	uuid := generateUUID()
 	user.ID = uuid
 	user.Password, _ = HashPassword(user.Password)
-	users = append(users, user)
 	user.Created_at = time.Now()
 	user.Updated_at = time.Now()
+
+	createdAtSql := user.Created_at.Format("2006-01-02 15:04:05")
+	UpdatedAtSql := user.Updated_at.Format("2006-01-02 15:04:05")
+
+	_, err := db.Exec(fmt.Sprintf("INSERT INTO users VALUES ('%s', '%s', '%s', '%s', '%s', '%s', '%v', '%v')", user.ID, user.Firstname, user.Lastname, user.Email, user.Password, user.Type, createdAtSql, UpdatedAtSql))
+	if err != nil {
+		json.NewEncoder(w).Encode(err)
+		return
+	}
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(user)
 }
 
 func getUsers(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
+	res, err := db.Query(`SELECT id, first_name, last_name, email, type, created_at, updated_at FROM users`)
+	if err != nil {
+		json.NewEncoder(w).Encode(err)
+	}
+
+	var users []UserDTO
+
+	for res.Next() {
+		var user UserDTO
+		if err := res.Scan(&user.ID, &user.Firstname, &user.Lastname, &user.Email, &user.Type, &user.Created_at, &user.Updated_at); err != nil {
+			json.NewEncoder(w).Encode(err)
+		}
+
+		users = append(users, user)
+	}
 	json.NewEncoder(w).Encode(users)
 }
 
 func getUser(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	params := mux.Vars(r)
-	for _, item := range users {
-		if item.ID == params["id"] {
-			json.NewEncoder(w).Encode(item)
-			return
-		}
+	if !(UserExists(params["id"])) {
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(config.ErrorGetUser)
+		return
 	}
-	w.WriteHeader(http.StatusNotFound)
-	json.NewEncoder(w).Encode(config.ErrorGetUser)
+
+	var (
+		user UserDTO
+	)
+
+	query := "SELECT id, first_name, last_name, type, email, created_at, updated_at FROM users WHERE id = ?"
+	if err := db.QueryRow(query, params["id"]).Scan(&user.ID, &user.Firstname, &user.Lastname, &user.Type, &user.Email, &user.Created_at, &user.Updated_at); err != nil {
+		log.Fatal(err)
+	}
+	json.NewEncoder(w).Encode(user)
+
 }
 
 func login(w http.ResponseWriter, r *http.Request) {
@@ -190,22 +184,37 @@ func login(w http.ResponseWriter, r *http.Request) {
 	var credentials Credentials
 	_ = json.NewDecoder(r.Body).Decode(&credentials)
 
-	for _, user := range users {
-		if user.Email == credentials.Email && CheckPasswordHash(credentials.Password, user.Password) {
-			token, err := auth.CreateToken(user.ID, user.Type, user.Email)
-			if err != nil {
-				json.NewEncoder(w).Encode(config.ErrorJWT)
-			}
-			bearer := "Bearer " + token
-			var jwt JWT
-			jwt.Token = bearer
-			json.NewEncoder(w).Encode(jwt)
+	if !(UserExistsWithEmail(credentials.Email)) {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(config.ErrorLogin)
+		return
+	}
+
+	var (
+		user User
+	)
+
+	query := "SELECT id, first_name, last_name, type, email,password,  created_at, updated_at FROM users WHERE email = ?"
+	if err := db.QueryRow(query, credentials.Email).Scan(&user.ID, &user.Firstname, &user.Lastname, &user.Type, &user.Email, &user.Password, &user.Created_at, &user.Updated_at); err != nil {
+		log.Fatal(err)
+	}
+
+	if CheckPasswordHash(credentials.Password, user.Password) {
+		token, err := auth.CreateToken(user.ID, user.Type, user.Email)
+		if err != nil {
+			json.NewEncoder(w).Encode(config.ErrorJWT)
 			return
 		}
+		bearer := "Bearer " + token
+		var jwt JWT
+		jwt.Token = bearer
+		json.NewEncoder(w).Encode(jwt)
+		return
 	}
 
 	w.WriteHeader(http.StatusBadRequest)
 	json.NewEncoder(w).Encode(config.ErrorLogin)
+
 }
 
 func adminRoute(w http.ResponseWriter, r *http.Request) {
@@ -228,16 +237,18 @@ func adminRoute(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	var err error
+	db, err = sql.Open("mysql", "santos:12343DF@(127.0.0.1:3306)/golang_db?parseTime=true")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+	err = db.Ping()
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("Conectou")
 	r := mux.NewRouter()
-
-	movies = append(movies, Movie{ID: "1", Isbn: "2343", Title: "Interstellar", Director: &Director{Firstname: "Matheus", Lastname: "Santos"}})
-	movies = append(movies, Movie{ID: "2", Isbn: "2344", Title: "Interstellar 2", Director: &Director{Firstname: "Matheus", Lastname: "Alencar"}})
-
-	r.HandleFunc("/movies", getMovies).Methods("GET")
-	r.HandleFunc("/movies/{id}", getMovie).Methods("GET")
-	r.HandleFunc("/movies", createMovie).Methods("POST")
-	r.HandleFunc("/movies/{id}", updateMovie).Methods("PUT")
-	r.HandleFunc("/movies/{id}", deleteMovie).Methods("DELETE")
 
 	r.HandleFunc("/users", createUser).Methods("POST")
 	r.HandleFunc("/users", getUsers).Methods("GET")

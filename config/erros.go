@@ -8,4 +8,5 @@ const (
 	ErrorJWT                = "Error: Error creating jwt token"
 	ErrorLogin              = "Error: Email or password incorrect"
 	ErrorTokenInvalid       = "Error: Token invalid"
+	ErrorConnectDB          = "Error: Cannot connect to DB"
 )
