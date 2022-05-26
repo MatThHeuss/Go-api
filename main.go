@@ -1,22 +1,19 @@
 package main
 
 import (
+	"./auth"
+	"./config"
+	"database/sql"
 	"encoding/json"
 	"fmt"
-	"log"
-	"net/http"
-	"time"
-
-	"strings"
-
-	"database/sql"
-
-	"example.com/auth"
-	"example.com/config"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"golang.org/x/crypto/bcrypt"
+	"log"
+	"net/http"
+	"strings"
+	"time"
 )
 
 type Movie struct {
@@ -118,6 +115,7 @@ func createUser(w http.ResponseWriter, r *http.Request) {
 	if EmailAlreadyExists(user.Email) {
 		json.NewEncoder(w).Encode(config.ErrorEmailAlreadyExists)
 		return
+
 	}
 
 	uuid := generateUUID()
