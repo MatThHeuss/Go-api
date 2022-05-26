@@ -1,11 +1,11 @@
 package main
 
 import (
-	"./auth"
-	"./config"
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"github.com/MatThHeuss/Go-api/auth"
+	"github.com/MatThHeuss/Go-api/config"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
@@ -91,6 +91,7 @@ func EmailAlreadyExists(email string) bool {
 	rows, _ := db.Query(query, email)
 
 	return rows.Next()
+
 }
 
 func UserExists(id string) bool {
@@ -115,7 +116,6 @@ func createUser(w http.ResponseWriter, r *http.Request) {
 	if EmailAlreadyExists(user.Email) {
 		json.NewEncoder(w).Encode(config.ErrorEmailAlreadyExists)
 		return
-
 	}
 
 	uuid := generateUUID()
